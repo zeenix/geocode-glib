@@ -23,7 +23,9 @@
 #include <stdlib.h>
 #include <glib.h>
 #include <libsoup/soup.h>
+#include <json-glib/json-glib.h>
 #include "geocode-ipclient.h"
+#include "geocode-error.h"
 
 /**
  * SECTION:geocode-ipclient
@@ -38,6 +40,12 @@ enum {
         PROP_SERVER,
         N_PROPERTIES
 };
+
+typedef enum {
+        SERVER_ERROR_INVALID_IP_ADDRESS = 0,
+        SERVER_INVALID_ENTRY,
+        SERVER_DATABASE
+} ServerError;
 
 struct _GeocodeIpclientPrivate {
         char *ip;
@@ -280,6 +288,87 @@ geocode_ipclient_search_async (GeocodeIpclient           *ipclient,
         g_object_unref (query);
 }
 
+static gboolean
+parse_server_error (JsonObject *object, GError **error) {
+        ServerError server_error_code;
+        int error_code;
+        const char *error_message;
+
+        if (!json_object_has_member (object, "error_code"))
+            return FALSE;
+
+        server_error_code = json_object_get_int_member (object, "error_code");
+        switch (server_error_code) {
+                case SERVER_ERROR_INVALID_IP_ADDRESS:
+                        error_code = GEOCODE_ERROR_INVALID_ARGUMENTS;
+                        break;
+                case SERVER_INVALID_ENTRY:
+                        error_code = GEOCODE_ERROR_NO_MATCHES;
+                        break;
+                case SERVER_DATABASE:
+                        error_code = GEOCODE_ERROR_INTERNAL_SERVER;
+                        break;
+        }
+
+        error_message = json_object_get_string_member (object, "error_message");
+
+        g_set_error_literal (error,
+                             GEOCODE_ERROR,
+                             error_code,
+                             error_message);
+
+        return TRUE;
+}
+
+static GeocodeLocation *
+json_to_location (const char *json, GError **error) {
+        JsonParser *parser;
+        JsonNode *node;
+        JsonObject *object;
+        GeocodeLocation *location;
+        GString *string;
+
+        parser = json_parser_new ();
+
+        if (!json_parser_load_from_data (parser, json, -1, error))
+                return NULL;
+
+        node = json_parser_get_root (parser);
+        object = json_node_get_object (node);
+
+        if (parse_server_error (object, error))
+                return NULL;
+
+        location = geocode_location_new (0, 0);
+        location->latitude = json_object_get_double_member (object, "latitude");
+        location->longitude = json_object_get_double_member (object, "longitude");
+
+        string = g_string_new ("");
+        if (json_object_has_member (object, "city")) {
+                g_string_append (string,
+                                 json_object_get_string_member (object, "city"));
+        }
+
+        if (json_object_has_member (object, "region")) {
+                if (string->len > 0)
+                        g_string_append_c (string, ',');
+                g_string_append (string,
+                                 json_object_get_string_member (object, "region"));
+        }
+
+        if (json_object_has_member (object, "country_name")) {
+                if (string->len > 0)
+                        g_string_append_c (string, ',');
+                g_string_append (string,
+                                 json_object_get_string_member (object, "country_name"));
+        }
+
+        location->description = g_string_free (string, FALSE);
+        g_object_unref (parser);
+
+        return location;
+}
+
 /**
  * geocode_ipclient_search_finish:
  * @ipclient: a #GeocodeIpclient representing a query
@@ -288,17 +377,17 @@ geocode_ipclient_search_async (GeocodeIpclient           *ipclient,
  *
  * Finishes a geolocation search operation. See geocode_ipclient_search_async().
  *
- * Returns: a string containing the result of the query in JSON format
- * or %NULL in case of errors.
- * Free the returned string with g_free() when done.
+ * Returns: A #GeocodeLocation object or %NULL in case of errors.
+ * Free the returned object with g_object_unref() when done.
  **/
-char *
+GeocodeLocation *
 geocode_ipclient_search_finish (GeocodeIpclient *ipclient,
                                 GAsyncResult    *res,
                                 GError          **error)
 {
         GSimpleAsyncResult *simple = G_SIMPLE_ASYNC_RESULT (res);
         char *contents = NULL;
+        GeocodeLocation *location;
 
         g_return_val_if_fail (GEOCODE_IS_IPCLIENT (ipclient), NULL);
 
@@ -308,7 +397,10 @@ geocode_ipclient_search_finish (GeocodeIpclient *ipclient,
                 return NULL;
 
         contents = g_simple_async_result_get_op_res_gpointer (simple);
-        return contents;
+        location = json_to_location (contents, error);
+        g_free (contents);
+
+        return location;
 }
 
 /**
@@ -318,16 +410,16 @@ geocode_ipclient_search_finish (GeocodeIpclient *ipclient,
  *
  * Gets the geolocation data for an IP address from the server.
  *
- * Returns: a string containing the result of the query in JSON format
- * or %NULL in case of errors.
- * Free the returned string with g_free() when done.
+ * Returns: A #GeocodeLocation object or %NULL in case of errors.
+ * Free the returned object with g_object_unref() when done.
  **/
-char *
+GeocodeLocation *
 geocode_ipclient_search (GeocodeIpclient        *ipclient,
                          GError                 **error)
 {
         char *contents;
         GFile *query;
+        GeocodeLocation *location;
 
         g_return_val_if_fail (GEOCODE_IS_IPCLIENT (ipclient), NULL);
         g_return_val_if_fail (ipclient->priv->server != NULL, NULL);
@@ -347,5 +439,8 @@ geocode_ipclient_search (GeocodeIpclient        *ipclient,
         }
         g_object_unref (query);
 
-        return contents;
+        location = json_to_location (contents, error);
+        g_free (contents);
+
+        return location;
 }

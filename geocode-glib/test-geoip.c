@@ -14,7 +14,7 @@ test_search (gconstpointer data)
 {
         GeocodeIpclient *ipclient;
         GError *error = NULL;
-        char *contents;
+        GeocodeLocation *location;
         const char *ip;
 
         ip = (const char *) data;
@@ -23,16 +23,14 @@ test_search (gconstpointer data)
         else {
                 ipclient = geocode_ipclient_new ();
         }
-        contents = geocode_ipclient_search (ipclient, &error);
-        if (!contents) {
+        location = geocode_ipclient_search (ipclient, &error);
+        if (!location) {
                 g_warning ("Failed at getting the geolocation information: %s", error->message);
                 g_error_free (error);
         }
-        g_assert (contents != NULL);
-        g_assert (strstr (contents, "\"ERROR\"") == NULL);
+        g_assert (location != NULL);
+        g_object_unref (location);
         g_object_unref (ipclient);
-        g_print ("%s\n", contents);
-        g_free (contents);
 }
 
 static void
@@ -42,17 +40,17 @@ print_geolocation_info_cb (GObject          *source_object,
 {
         GeocodeIpclient *object = (GeocodeIpclient *) source_object;
         GError *error = NULL;
-        char *results;
+        GeocodeLocation *location;
 
-        results = geocode_ipclient_search_finish (object, res, &error);
-        if (results == NULL) {
+        location = geocode_ipclient_search_finish (object, res, &error);
+        if (location == NULL) {
                 g_message ("Failed to search the geolocation info: %s", error->message);
                 g_error_free (error);
                 exit (1);
         }
-        g_print ("%s\n", results);
-        g_free (results);
+        g_print ("Location: %s (%f,%f)\n", location->description, location->latitude,  location->longitude);
 
+        g_object_unref (location);
         g_object_unref (object);
         exit (0);
 }
