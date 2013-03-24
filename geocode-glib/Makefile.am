@@ -2,19 +2,24 @@ include $(top_srcdir)/Makefile.decl
 
 SUBDIRS = geocode-ip-server
 
-EXTRA_DIST = geocode-glib.symbols
+EXTRA_DIST =
+	geocode-glib.symbols				\
+	geocode-enum-types.h.template 			\
+	geocode-enum-types.c.template
+
 BUILT_GIRSOURCES =
 
 lib_LTLIBRARIES = libgeocode-glib.la
 
 public_files =						\
-	$(gcglib_HEADERS)				\
+	$(public_headers)				\
 	geocode-location.c				\
 	geocode-forward.c				\
 	geocode-reverse.c				\
 	geocode-glib.c					\
 	geocode-error.c                                 \
-	geocode-ipclient.c
+	geocode-ipclient.c				\
+	geocode-enum-types.c
 
 libgeocode_glib_la_SOURCES =				\
 	$(public_files)					\
@@ -37,7 +42,21 @@ gcglib_HEADERS = \
 	geocode-error.h                                 \
 	geocode-ipclient.h
 
+public_headers =					\
+	$(gcglib_HEADERS)				\
+	geocode-enum-types.h
+
 AM_CFLAGS = -I$(top_srcdir) $(GEOCODE_CFLAGS) $(COMMON_CFLAGS) $(WARN_CFLAGS) $(DISABLE_DEPRECATED) -DTEST_SRCDIR=\""$(srcdir)/data/"\"
+
+BUILT_SOURCES = \
+               geocode-enum-types.c \
+               geocode-enum-types.h
+
+geocode-enum-types.h: $(gcglib_HEADERS) geocode-enum-types.h.template
+	$(GLIB_MKENUMS) --template geocode-enum-types.h.template $(gcglib_HEADERS) >geocode-enum-types.h
+
+geocode-enum-types.c: $(gcglib_HEADERS) geocode-enum-types.c.template
+	$(GLIB_MKENUMS) --template geocode-enum-types.c.template $(gcglib_HEADERS) >geocode-enum-types.c
 
 -include $(INTROSPECTION_MAKEFILE)
 INTROSPECTION_GIRS =
