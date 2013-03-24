@@ -387,8 +387,8 @@ json_to_location (const char              *json,
                 return NULL;
 
         location = geocode_location_new (0, 0);
-        location->latitude = json_object_get_double_member (object, "latitude");
-        location->longitude = json_object_get_double_member (object, "longitude");
+        geocode_location_set_latitude (location, json_object_get_double_member (object, "latitude"));
+        geocode_location_set_longitude (location, json_object_get_double_member (object, "longitude"));
 
         string = g_string_new ("");
         if (json_object_has_member (object, "city")) {
@@ -413,7 +413,8 @@ json_to_location (const char              *json,
         if (accuracy != NULL)
                 *accuracy = get_accuracy_from_json_location (object);
 
-        location->description = g_string_free (string, FALSE);
+        geocode_location_set_description (location, string->str);
+        g_string_free (string, TRUE);
         g_object_unref (parser);
 
         return location;
@@ -428,8 +429,8 @@ json_to_location (const char              *json,
  *
  * Finishes a geolocation search operation. See geocode_ipclient_search_async().
  *
- * Returns: A #GeocodeLocation object or %NULL in case of errors.
- * Free the returned object with g_object_unref() when done.
+ * Returns: (transfer full): A #GeocodeLocation object or %NULL in case of
+ * errors. Free the returned object with g_object_unref() when done.
  **/
 GeocodeLocation *
 geocode_ipclient_search_finish (GeocodeIpclient         *ipclient,
@@ -463,8 +464,8 @@ geocode_ipclient_search_finish (GeocodeIpclient         *ipclient,
  *
  * Gets the geolocation data for an IP address from the server.
  *
- * Returns: A #GeocodeLocation object or %NULL in case of errors.
- * Free the returned object with g_object_unref() when done.
+ * Returns: (transfer full): A #GeocodeLocation object or %NULL in case of
+ * errors. Free the returned object with g_object_unref() when done.
  **/
 GeocodeLocation *
 geocode_ipclient_search (GeocodeIpclient         *ipclient,

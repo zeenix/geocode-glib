@@ -472,7 +472,7 @@ geocode_forward_search_async (GeocodeForward      *forward,
  *
  * Returns: (element-type GeocodeLocation) (transfer container): A list of
  * locations or %NULL in case of errors. Free the returned list with
- * g_list_free() when done.
+ * g_object_unref() when done.
  **/
 GList *
 geocode_forward_search_finish (GeocodeForward       *forward,
@@ -646,7 +646,7 @@ make_location_list_from_tree (GNode   *node,
 		 * and set it to the description of the loc object */
 		loc = (GeocodeLocation *) node->data;
 
-		name = loc->description;
+		name = geocode_location_get_description (loc);
 
 		/* To print the attributes in a meaningful manner
 		 * reverse the s_array */
@@ -770,7 +770,7 @@ parse:
  *
  * Returns: (element-type GeocodeLocation) (transfer container): A list of
  * locations or %NULL in case of errors. Free the returned list with
- * g_list_free() when done.
+ * g_object_unref() when done.
  **/
 GList *
 geocode_forward_search (GeocodeForward      *forward,

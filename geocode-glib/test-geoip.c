@@ -51,7 +51,10 @@ print_geolocation_info_cb (GObject          *source_object,
                 g_error_free (error);
                 exit (1);
         }
-        g_print ("Location: %s (%f,%f)\n", location->description, location->latitude,  location->longitude);
+        g_print ("Location: %s (%f,%f)\n",
+                 geocode_location_get_description (location),
+                 geocode_location_get_latitude (location),
+                 geocode_location_get_longitude (location));
 
         g_object_unref (location);
         g_object_unref (object);
