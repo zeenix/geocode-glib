@@ -63,6 +63,22 @@ struct _GeocodeIpclientClass {
         GObjectClass parent_class;
 };
 
+/**
+ * GeocodeLocationAccuracy:
+ * GEOCODE_LOCATION_ACCURACY_STREET: Street-level accuracy.
+ * GEOCODE_LOCATION_ACCURACY_CITY: City-level accuracy.
+ * GEOCODE_LOCATION_ACCURACY_REGION: Region-level accuracy.
+ * GEOCODE_LOCATION_ACCURACY_COUNTRY: Country-level accuracy.
+ * GEOCODE_LOCATION_ACCURACY_CONTINENT: Continent-level accuracy.
+ **/
+typedef enum {
+        GEOCODE_LOCATION_ACCURACY_STREET,
+        GEOCODE_LOCATION_ACCURACY_CITY,
+        GEOCODE_LOCATION_ACCURACY_REGION,
+        GEOCODE_LOCATION_ACCURACY_COUNTRY,
+        GEOCODE_LOCATION_ACCURACY_CONTINENT
+} GeocodeLocationAccuracy;
+
 GeocodeIpclient *geocode_ipclient_new           (void);
 GeocodeIpclient *geocode_ipclient_new_for_ip    (const char *str);
 
@@ -72,12 +88,14 @@ void geocode_ipclient_search_async  (GeocodeIpclient       *ipclient,
                                      GAsyncReadyCallback    callback,
                                      gpointer               user_data);
 
-GeocodeLocation *geocode_ipclient_search_finish (GeocodeIpclient   *ipclient,
-                                                 GAsyncResult      *res,
-                                                 GError            **error);
+GeocodeLocation *geocode_ipclient_search_finish (GeocodeIpclient         *ipclient,
+                                                 GAsyncResult            *res,
+                                                 GeocodeLocationAccuracy *accuracy,
+                                                 GError                 **error);
 
-GeocodeLocation *geocode_ipclient_search (GeocodeIpclient *ipclient,
-                                          GError          **error);
+GeocodeLocation *geocode_ipclient_search (GeocodeIpclient         *ipclient,
+                                          GeocodeLocationAccuracy *accuracy,
+                                          GError                 **error);
 
 G_END_DECLS
 

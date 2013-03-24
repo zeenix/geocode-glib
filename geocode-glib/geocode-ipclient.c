@@ -26,6 +26,7 @@
 #include <json-glib/json-glib.h>
 #include "geocode-ipclient.h"
 #include "geocode-error.h"
+#include "geocode-enum-types.h"
 
 /**
  * SECTION:geocode-ipclient
@@ -320,8 +321,54 @@ parse_server_error (JsonObject *object, GError **error) {
         return TRUE;
 }
 
+/* Modified copy of gvir_config_genum_get_value from libvirt-glib */
+static int
+get_enum_value_by_nick (GType       enum_type,
+                        const char *nick,
+                        gint        default_value)
+{
+        GEnumClass *enum_class;
+        GEnumValue *enum_value;
+
+        g_return_val_if_fail (G_TYPE_IS_ENUM (enum_type), default_value);
+        g_return_val_if_fail (nick != NULL, default_value);
+
+        enum_class = g_type_class_ref (enum_type);
+        enum_value = g_enum_get_value_by_nick (enum_class, nick);
+        g_type_class_unref (enum_class);
+
+        if (enum_value != NULL)
+                return enum_value->value;
+
+        g_return_val_if_reached (default_value);
+}
+
+static GeocodeLocationAccuracy
+get_accuracy_from_json_location (JsonObject *object)
+{
+        if (json_object_has_member (object, "accuracy")) {
+                const char *str;
+
+                str = json_object_get_string_member (object, "accuracy");
+                return get_enum_value_by_nick (GEOCODE_TYPE_LOCATION_ACCURACY,
+                                               str,
+                                               GEOCODE_LOCATION_ACCURACY_COUNTRY);
+        } else if (json_object_has_member (object, "street"))
+                return GEOCODE_LOCATION_ACCURACY_STREET;
+        else if (json_object_has_member (object, "city"))
+                return GEOCODE_LOCATION_ACCURACY_CITY;
+        else if (json_object_has_member (object, "region"))
+                return GEOCODE_LOCATION_ACCURACY_REGION;
+        else if (json_object_has_member (object, "country"))
+                return GEOCODE_LOCATION_ACCURACY_COUNTRY;
+        else
+                return GEOCODE_LOCATION_ACCURACY_CONTINENT;
+}
+
 static GeocodeLocation *
-json_to_location (const char *json, GError **error) {
+json_to_location (const char              *json,
+                  GeocodeLocationAccuracy *accuracy,
+                  GError                 **error) {
         JsonParser *parser;
         JsonNode *node;
         JsonObject *object;
@@ -363,6 +410,9 @@ json_to_location (const char *json, GError **error) {
                                  json_object_get_string_member (object, "country_name"));
         }
 
+        if (accuracy != NULL)
+                *accuracy = get_accuracy_from_json_location (object);
+
         location->description = g_string_free (string, FALSE);
         g_object_unref (parser);
 
@@ -373,6 +423,7 @@ json_to_location (const char *json, GError **error) {
  * geocode_ipclient_search_finish:
  * @ipclient: a #GeocodeIpclient representing a query
  * @res: a #GAsyncResult
+ * @accuracy: (out): place-holder for accuracy of the returned location or NULL
  * @error: a #GError
  *
  * Finishes a geolocation search operation. See geocode_ipclient_search_async().
@@ -381,9 +432,10 @@ json_to_location (const char *json, GError **error) {
  * Free the returned object with g_object_unref() when done.
  **/
 GeocodeLocation *
-geocode_ipclient_search_finish (GeocodeIpclient *ipclient,
-                                GAsyncResult    *res,
-                                GError          **error)
+geocode_ipclient_search_finish (GeocodeIpclient         *ipclient,
+                                GAsyncResult            *res,
+                                GeocodeLocationAccuracy *accuracy,
+                                GError                 **error)
 {
         GSimpleAsyncResult *simple = G_SIMPLE_ASYNC_RESULT (res);
         char *contents = NULL;
@@ -397,7 +449,7 @@ geocode_ipclient_search_finish (GeocodeIpclient *ipclient,
                 return NULL;
 
         contents = g_simple_async_result_get_op_res_gpointer (simple);
-        location = json_to_location (contents, error);
+        location = json_to_location (contents, accuracy, error);
         g_free (contents);
 
         return location;
@@ -406,6 +458,7 @@ geocode_ipclient_search_finish (GeocodeIpclient *ipclient,
 /**
  * geocode_ipclient_search:
  * @ipclient: a #GeocodeIpclient representing a query
+ * @accuracy: (out): place-holder for accuracy of the returned location or NULL
  * @error: a #GError
  *
  * Gets the geolocation data for an IP address from the server.
@@ -414,7 +467,8 @@ geocode_ipclient_search_finish (GeocodeIpclient *ipclient,
  * Free the returned object with g_object_unref() when done.
  **/
 GeocodeLocation *
-geocode_ipclient_search (GeocodeIpclient        *ipclient,
+geocode_ipclient_search (GeocodeIpclient         *ipclient,
+                         GeocodeLocationAccuracy *accuracy,
                          GError                 **error)
 {
         char *contents;
@@ -439,7 +493,7 @@ geocode_ipclient_search (GeocodeIpclient        *ipclient,
         }
         g_object_unref (query);
 
-        location = json_to_location (contents, error);
+        location = json_to_location (contents, accuracy, error);
         g_free (contents);
 
         return location;
